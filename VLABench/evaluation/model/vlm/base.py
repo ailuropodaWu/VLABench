@@ -79,10 +79,11 @@ def prepare_oracle_promt(task_name, instruction):
     elif task_name == "take_chemistry_experiment":
         experiment_config_path = os.path.join(os.getenv("VLABENCH_ROOT"), "configs", "task_related", "experiment.json")
         experiment_config = json.load(open(experiment_config_path)) # {"experiment_i": {"instruction": '...', "solutions": [...]}}
+        prompt = "Solutions of all experiments:\n"
         for experiment_info in experiment_config.values():
-            if experiment_info["instruction"] in instruction:
-                return f"To conduct the experiment, you need the following materials: {', '.join(experiment_info['solutions'])}."
-        raise ValueError(f"Experiment instruction not found in instruction.\nInstruction: {instruction}")
+            prompt += f"Experiment: {experiment_info['instruction']}\n"
+            prompt += f"Solutions: {', '.join(experiment_info['solutions'])}\n"
+        return prompt
     elif task_name == "texas_holdem":
         return (
             "In Texas Hold'em, the hand rankings from low to high are:" 
