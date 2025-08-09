@@ -4,13 +4,15 @@ class Llava_NeXT(BaseVLM):
     def __init__(self) -> None:
         from transformers import AutoProcessor, LlavaNextForConditionalGeneration
         super().__init__()
-        self.model = LlavaNextForConditionalGeneration.from_pretrained("llava-hf/llava-v1.6-mistral-7b-hf", torch_dtype=torch.float16, device_map="auto"
-                                                          ,use_flash_attention_2=True
-                                                          )
+        self.model = LlavaNextForConditionalGeneration.from_pretrained(
+            "llava-hf/llava-v1.6-mistral-7b-hf", 
+            torch_dtype=torch.float16, 
+            device_map="auto",
+        ).cuda()
         self.processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-mistral-7b-hf")
 
     def evaluate(self, input_dict, language, with_CoT=False):
-        few_shot_num = len(input_dict["shot_input_pic"].keys())
+        few_shot_num = len(input_dict.get("shot_input_pic", {}).keys())
         ti_list = get_ti_list(input_dict, language, with_CoT=with_CoT)
         content, image_list = self.build_prompt_with_tilist(ti_list)
         conversation = [

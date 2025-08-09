@@ -230,10 +230,10 @@ class VLMEvaluator(Evaluator):
             json.dump(model_output, f, ensure_ascii=False, indent=4)
         print(Fore.YELLOW + Style.BRIGHT + "working end at " + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
 
-    def get_final_score_dict(self, vlm_name, few_shot_num=0, with_CoT=False):
-        output_file = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT), "output.json")
+    def get_final_score_dict(self, vlm_name, few_shot_num=0, with_CoT=False, eval_dim="default"):
+        output_file = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT, eval_dim), "output.json")
         if not os.path.exists(output_file):
-            print(Fore.RED + Style.BRIGHT + "output file not exist for model: ", vlm_name, " few_shot_num: ", few_shot_num, " with_CoT: ", with_CoT)
+            print(Fore.RED + Style.BRIGHT + "output file not exist for model: ", vlm_name, " few_shot_num: ", few_shot_num, " with_CoT: ", with_CoT, " eval_dim: ", eval_dim)
             return None
         with open(output_file) as f:
             model_output = json.load(f)
@@ -273,7 +273,7 @@ class VLMEvaluator(Evaluator):
                         "total_score": 0
                     }
                 
-        final_score_dict_save_path = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT), "final_score.json")
+        final_score_dict_save_path = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT, eval_dim), "final_score.json")
         with open(final_score_dict_save_path, 'w', encoding="utf-8") as f:
             json.dump(final_score_dict, f, ensure_ascii=False, indent=4)
         return final_score_dict

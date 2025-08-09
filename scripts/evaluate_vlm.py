@@ -3,6 +3,7 @@ import json
 import os
 from VLABench.evaluation.evaluator import VLMEvaluator
 from VLABench.evaluation.model.vlm import *
+import torch
 
 def initialize_model(model_name, *args, **kwargs):
     cls = globals().get(model_name)
@@ -20,6 +21,7 @@ def parse_args():
     parser.add_argument("--tasks", nargs='+', default=None, help="Specific tasks to run, default is None, meaning evaluate on all the tasks")
     parser.add_argument("--n-episodes", type=int, default=100, help="Number of episodes to evaluate for a task")
     parser.add_argument("--with-cot", default=False, action="store_true", help="Whether to use chain of thought")
+    parser.add_argument("--save-dir", type=str, default=os.path.join(os.getenv("VLABENCH_ROOT"), "logs/vlm"), help="Directory to save the results")
     return parser.parse_args()
 
 def main():
@@ -40,16 +42,16 @@ def main():
         
         vlm = initialize_model(args.vlm_name) 
         
-        if args.task_list_json is not None:
-            try:
-                pwd = os.getcwd()
-                task_list_path = os.path.join(pwd, "../../configs/benchmark/taskList", args.task_list_json)
-                with open(task_list_path, 'r') as f:
-                    task_list = json.load(f)
-            except:
-                task_list = None
-        else:
-            task_list = []
+        # if args.task_list_json is not None:
+        #     try:
+        #         pwd = os.getcwd()
+        #         task_list_path = os.path.join(pwd, "../../configs/benchmark/taskList", args.task_list_json)
+        #         with open(task_list_path, 'r') as f:
+        #             task_list = json.load(f)
+        #     except:
+        #         task_list = None
+        # else:
+        #     task_list = []
 
         evaluator.evaluate(
             vlm,
@@ -58,10 +60,18 @@ def main():
             with_CoT=args.with_cot,
             eval_dim=eval_dim,
         )
-        result=evaluator.get_final_score_dict(args.vlm_name)
+        result=evaluator.get_final_score_dict(
+            args.vlm_name, 
+            few_shot_num=args.few_shot_num,
+            with_CoT=args.with_cot,
+            eval_dim=eval_dim
+        )
         os.makedirs(os.path.join(args.save_dir, args.vlm_name), exist_ok=True)
         with open(os.path.join(args.save_dir, args.vlm_name, f"{eval_dim}_result.json"), "w") as f:
             json.dump(result, f, indent=4)
+        del vlm
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 if __name__ == "__main__":
     main()
