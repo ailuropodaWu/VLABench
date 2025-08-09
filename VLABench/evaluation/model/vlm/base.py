@@ -99,7 +99,20 @@ def prepare_oracle_promt(task_name, instruction):
             "Royal Flush: the highest straight flush."
         )
     elif task_name == "book_rearrange":
-        return "Order the book according to the publish date."
+        prompt_path = 'book_arrange_oracle_prompt.txt'
+        if os.path.exists(prompt_path):
+            with open(prompt_path, 'r') as f:
+                return f.read().strip()
+        task_config_path = os.path.join(os.getenv("VLABENCH_ROOT"), "configs", "task_config.json")
+        task_config = json.load(open(task_config_path))["book_rearrange"]["task"]["asset"]
+        book_config = [*task_config["seen_object"], *task_config["unseen_object"]]
+        prompt = "Publish time of all books:\n"
+        for book in book_config:
+            publish_time, book_name = book.split("_", 1)
+            prompt += f"Book: {book_name}, Publish Time: {publish_time}\n"
+        with open('book_arrange_oracle_prompt.txt', 'w') as f:
+            f.write(prompt)
+        return prompt
     elif task_name == "hammer_nail_and_hang_picture":
         return "The nail should be hammered into the wall before the picture is hung."
     else:
