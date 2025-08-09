@@ -19,7 +19,7 @@ class Qwen2_VL(BaseVLM):
             torch_dtype=torch.bfloat16,
             attn_implementation="flash_attention_2",
             device_map="auto",
-        )
+        ).cuda()
 
         # default processer
         self.processor = AutoProcessor.from_pretrained(model_dir)

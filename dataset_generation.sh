@@ -2,7 +2,7 @@ N_SAMPLE=10
 OFFSET=0
  
 task_names=("select_toy" "select_fruit" ) # add more task here
-save_dir="/Your/path/to/trajectory/dataset"
+save_dir="traj"
 
 for task_name in "${task_names[@]}"; do # add more process here
     commands=(
@@ -14,7 +14,7 @@ for task_name in "${task_names[@]}"; do # add more process here
 
     for cmd in "${commands[@]}"; do
         echo "Starting: $cmd"
-        $cmd &
+        $cmd 
     done
 
     wait  # 等待当前任务名称的所有命令执行完成
