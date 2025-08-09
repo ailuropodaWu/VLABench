@@ -24,9 +24,9 @@ class Qwen2_VL(BaseVLM):
         # default processer
         self.processor = AutoProcessor.from_pretrained(model_dir)
 
-    def evaluate(self, input_dict, language, with_CoT=False):
+    def evaluate(self, input_dict, language, with_CoT=False, task_to_have_oracle=None):
         from qwen_vl_utils import process_vision_info
-        ti_list = get_ti_list(input_dict, language, with_CoT=with_CoT)
+        ti_list = get_ti_list(input_dict, language, with_CoT=with_CoT, task_to_have_oracle=task_to_have_oracle)
         
         content = self.build_prompt_with_tilist(ti_list)
 
