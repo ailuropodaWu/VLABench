@@ -81,7 +81,7 @@ def prepare_oracle_promt(task_name, instruction):
         experiment_config = json.load(open(experiment_config_path)) # {"experiment_i": {"instruction": '...', "solutions": [...]}}
         for experiment_info in experiment_config.values():
             if experiment_info["instruction"] in instruction:
-                return f"To conduct the experiment, you need the following materials: {', '.join(experiment_info['materials'])}."
+                return f"To conduct the experiment, you need the following materials: {', '.join(experiment_info['solutions'])}."
         raise ValueError(f"Experiment instruction not found in instruction.\nInstruction: {instruction}")
     elif task_name == "texas_holdem":
         return (
