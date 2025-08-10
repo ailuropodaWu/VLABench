@@ -9,13 +9,13 @@ def load_single_output(data_path):
     gt_operation_sequence['instruction'] = open(instruction_file_path, 'r').read().strip()
     return gt_operation_sequence
 
-all_gt_operation_sequences = {}
 eval_dimension = ["M&T", "CommonSense", "Semantic", "Spatial", "PhysicalLaw", "Complex"]
 for eval_dim in eval_dimension:
     output_path = os.path.join(os.getenv("VLABENCH_ROOT"), "../logs/gt", f"{eval_dim}_gt_operation_sequence.json")
     if os.path.exists(output_path):
         print(f"Output file {output_path} already exists. Skipping extraction.")
         continue
+    all_gt_operation_sequences = {}
     task_list = os.listdir(os.path.join(os.getenv("VLABENCH_ROOT"), "../dataset", f"vlm_evaluation_v1.0/{eval_dim}"))
     for task_name in task_list:
         task_path = os.path.join(os.getenv("VLABENCH_ROOT"), "../dataset", f"vlm_evaluation_v1.0/{eval_dim}", task_name)
