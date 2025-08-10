@@ -10,5 +10,5 @@ for vlm in "${vlms[@]}"; do
         --vlm_name $vlm \
         --few-shot-num 2 \
         --eval-dim Complex \
-        --with-oracle-prompt
+        --retrieve-sample
 done

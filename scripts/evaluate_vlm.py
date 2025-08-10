@@ -22,6 +22,7 @@ def parse_args():
     parser.add_argument("--n-episodes", type=int, default=100, help="Number of episodes to evaluate for a task")
     parser.add_argument("--with-cot", default=False, action="store_true", help="Whether to use chain of thought")
     parser.add_argument("--with-oracle-prompt", default=False, action="store_true", help="Whether to use oracle prompt")
+    parser.add_argument("--retrieve-sample", default=False, action="store_true", help="Whether to retrieve samples from the same task")
     parser.add_argument("--save-dir", type=str, default=os.path.join(os.getenv("VLABENCH_ROOT"), "logs/vlm"), help="Directory to save the results")
     return parser.parse_args()
 
@@ -60,6 +61,7 @@ def main():
             few_shot_num=args.few_shot_num,
             with_CoT=args.with_cot,
             with_oracle_prompt=args.with_oracle_prompt,
+            retrieve_sample=args.retrieve_sample,
             eval_dim=eval_dim,
         )
         result=evaluator.get_final_score_dict(
@@ -67,6 +69,7 @@ def main():
             few_shot_num=args.few_shot_num,
             with_CoT=args.with_cot,
             with_oracle_prompt=args.with_oracle_prompt,
+            retrieve_sample=args.retrieve_sample,
             eval_dim=eval_dim
         )
         os.makedirs(os.path.join(args.save_dir, args.vlm_name), exist_ok=True)
