@@ -38,6 +38,7 @@ def extract_format_error(result_data):
 def get_score_data_key(path):
     path = path.replace(os.getenv('VLABENCH_ROOT') + '/../logs/', '').replace('/final_score.json', '')
     path = path.replace('/', '_')
+    path = path.replace('vlm_Qwen2_VL_', '').replace('_en_', '_')
     return path
 
 def main():
@@ -55,11 +56,85 @@ def main():
             'scores': extract_scores(score),
             'format_errors': extract_format_error(result)
         }
+    # Get all task names from the first data entry
+    first_key = next(iter(all_data.keys()))
+    task_names = [task for task in all_data[first_key]['scores'].keys()]
+    fix_length = max(len(key) for key in all_data.keys()) + 5  # Add some padding for readability
+    
+    def format_text(text, width):
+        """Format text to fit within width, splitting to two lines if necessary"""
+        if len(text) <= width:
+            return [text.ljust(width)]
+        else:
+            # Split at roughly half length, preferring word boundaries
+            mid = width // 2
+            split_point = mid
+            # Try to find a good split point (underscore, space, or other separator)
+            for i in range(mid - 5, mid + 5):
+                if i < len(text) and text[i] in ['_', '-', ' ']:
+                    split_point = i
+                    break
+            line1 = text[:split_point].ljust(width)
+            line2 = text[split_point:].ljust(width)
+            return [line1, line2]
+    
     with open(os.path.join(os.getenv('VLABENCH_ROOT'), '../logs/score_summary.txt'), 'w') as f:
+        # Format headers
+        method_header = format_text("Method", fix_length)
+        task_headers = [format_text(task, 25) for task in task_names]
+        
+        # Write header lines
+        for line_idx in range(max(len(method_header), max(len(header) for header in task_headers))):
+            # Write method header line
+            if line_idx < len(method_header):
+                f.write(method_header[line_idx])
+            else:
+                f.write(" " * fix_length)
+            
+            # Write task header lines
+            for header in task_headers:
+                if line_idx < len(header):
+                    f.write(header[line_idx])
+                else:
+                    f.write(" " * 25)
+            f.write("\n")
+        
+        f.write("-" * (fix_length + 25 * len(task_names)) + "\n")
+
+        # Write data rows
         for key, data in all_data.items():
-            f.write(f"Scores for {key}:\n")
-            for task, task_score in data['scores'].items():
-                f.write(f"  {task} - score: {task_score:.2f} format error {data['format_errors'].get(task, 0):.2f}\n")
+            if not "Complex" in key:
+                continue
+            if "max_token_128" in key:
+                continue
+            
+            # Format key
+            key_lines = format_text(key, fix_length)
+            
+            # Prepare value lines for each task
+            value_lines = []
+            for task in task_names:
+                score = data['scores'].get(task, 0)
+                format_error = data['format_errors'].get(task, 0)
+                value_text = f"{score:.2f} / {format_error:.1f}%"
+                value_lines.append(format_text(value_text, 25))
+            
+            # Write all lines for this row
+            max_lines = max(len(key_lines), max(len(vl) for vl in value_lines))
+            for line_idx in range(max_lines):
+                # Write key line
+                if line_idx < len(key_lines):
+                    f.write(key_lines[line_idx])
+                else:
+                    f.write(" " * fix_length)
+                
+                # Write value lines
+                for value_line in value_lines:
+                    if line_idx < len(value_line):
+                        f.write(value_line[line_idx])
+                    else:
+                        f.write(" " * 25)
+                f.write("\n")
 
 if __name__ == "__main__":
     main()
