@@ -3,6 +3,11 @@ import json
 import time
 import random
 import traceback
+import pickle
+
+from sentence_transformers import SentenceTransformer
+from sentence_transformers.util import cos_sim
+from transformers import GPT2Tokenizer
 from VLABench.evaluation.utils import *
 from VLABench.evaluation.evaluator.base import Evaluator
 from VLABench.evaluation.model.vlm.base import BaseVLM
@@ -41,7 +46,7 @@ class VLMEvaluator(Evaluator):
         self.task2dim = {} # task_name to evaluation dimension
         self.get_task2dim()
         self.language = language
-        
+
     def get_task2dim(self):
         for dim in self.dim2task:
             for task in self.dim2task[dim]:
@@ -52,7 +57,55 @@ class VLMEvaluator(Evaluator):
         self.language = language
         self.pre_prompt = open(f'base_prompt_{language}.txt', 'r').read()
 
-    def build_input(self, task_name, example_num, few_shot_num=0):
+    def _initialize_retrieval_models(self):
+        print(Fore.YELLOW + Style.BRIGHT + "Initializing retrieval models...")
+        self.sentence_embedder = SentenceTransformer('all-MiniLM-L6-v2')
+        self.retrieval_tokenizer = GPT2Tokenizer.from_pretrained("gpt2")
+        print(Fore.GREEN + Style.BRIGHT + "Retrieval models initialized.")
+        self.knn_set = self._build_knn_set()
+
+    def _build_knn_set(self, knn_set_path='dataset/knn_set.pkl'):
+        if os.path.exists(knn_set_path):
+            with open(knn_set_path, 'rb') as f:
+                knn_set = pickle.load(f)
+        else:
+            knn_set = {}
+            for task_name in self.all_task_list:
+                knn_set[task_name] = {}
+                for example_num in range(len(os.listdir(os.path.join(self.data_path, task_name)))):
+                    input_pic, input_pic_gt, input_instruction = self.load_single_input(task_name, example_num)
+                    instruction_emb = self.sentence_embedder.encode(input_instruction, convert_to_tensor=True)
+                    knn_set[task_name][example_num] = {
+                        'input_pic': input_pic,
+                        'input_pic_gt': input_pic_gt,
+                        'instruction_emb': instruction_emb,
+                        'input_instruction': input_instruction
+                    }
+            with open(knn_set_path, 'wb') as f:
+                pickle.dump(knn_set, f)
+        return knn_set
+
+    def knn_retrieval(self, task_name, example_num, k=0):
+        input_pic, input_pic_gt, input_instruction  = self.load_single_input(task_name, example_num)
+        instruction_emb = self.sentence_embedder.encode(input_instruction, convert_to_tensor=True)
+        topK = []
+        for sample_task_name in self.knn_set:
+            for sample_example_num in self.knn_set[sample_task_name]:
+                if sample_task_name == task_name and sample_example_num == int(example_num):
+                    continue
+                knn_example = self.knn_set[sample_task_name][sample_example_num]
+                dist = -1 * cos_sim(instruction_emb, knn_example['instruction_emb'])
+                if len(topK) < k:
+                    topK.append(((sample_task_name, sample_example_num), dist))
+                    topK = sorted(topK, key=lambda x: x[1])
+                elif dist < topK[-1][1]:
+                    topK[-1] = ((sample_task_name, sample_example_num), dist)
+                    topK = sorted(topK, key=lambda x: x[1])
+        with open('knn_retrieval_log.txt', 'a') as f:
+            f.write(f"Task: {task_name}, Example: {example_num}, Retrieved samples: {topK}\n")
+        return topK
+
+    def build_input(self, task_name, example_num, few_shot_num=0, retrieve_sample=False):
         prepared_input = {}
         prepared_input["pre_prompt"] = self.pre_prompt
 
@@ -61,9 +114,16 @@ class VLMEvaluator(Evaluator):
             prepared_input["shot_input_pic_gt"] = {}
             prepared_input["shot_input_instruction"] = {}
             prepared_input["shot_output"] = {}
+        
+        if retrieve_sample:
+            retrieved_samples = self.knn_retrieval(task_name, example_num, k=few_shot_num)
+        
         for i in range(few_shot_num):
-            shot_task_name = random.choice(self.all_task_list)
-            shot_example_num = int(random.choice(os.listdir(os.path.join(self.data_path, shot_task_name)))[7:])
+            if retrieve_sample:
+                shot_task_name, shot_example_num = random.choice(retrieved_samples)[0]
+            else:
+                shot_task_name = random.choice(self.all_task_list)
+                shot_example_num = int(random.choice(os.listdir(os.path.join(self.data_path, shot_task_name)))[7:])
             while shot_task_name == task_name and shot_example_num == example_num:
                 shot_task_name = random.choice(self.all_task_list)
                 shot_example_num = int(random.choice(os.listdir(os.path.join(self.data_path, shot_task_name)))[7:])
@@ -83,13 +143,15 @@ class VLMEvaluator(Evaluator):
 
         return prepared_input
 
-    def get_result_save_path(self, vlm_name, few_shot_num, with_CoT, with_oracle_prompt, eval_dim):
+    def get_result_save_path(self, vlm_name, few_shot_num, with_CoT, with_oracle_prompt, retrieve_sample, eval_dim):
         model_result_save_path = os.path.join(self.save_path, vlm_name, self.language)
         config = str(few_shot_num) + "_shot"
         if with_CoT:
             config += "_CoT"
         if with_oracle_prompt:
             config += "_oracle"
+        if retrieve_sample:
+            config += "_rag"
         model_result_save_path = os.path.join(model_result_save_path, config, eval_dim)
         if not os.path.exists(model_result_save_path):
             os.makedirs(model_result_save_path)
@@ -112,9 +174,9 @@ class VLMEvaluator(Evaluator):
             gt_operation_sequence = json.load(f)
         return gt_operation_sequence
 
-    def get_single_answer(self, task_name, example_num, vlm: BaseVLM, few_shot_num = 0,with_CoT=False, with_oracle_prompt=False):
+    def get_single_answer(self, task_name, example_num, vlm: BaseVLM, few_shot_num = 0,with_CoT=False, with_oracle_prompt=False, retrieve_sample=False):
         outputs = vlm.evaluate(
-            self.build_input(task_name, example_num, few_shot_num), 
+            self.build_input(task_name, example_num, few_shot_num, retrieve_sample), 
             self.language, 
             with_CoT=with_CoT, 
             task_to_have_oracle=task_name if with_oracle_prompt else None
@@ -128,7 +190,7 @@ class VLMEvaluator(Evaluator):
             return True
         return False
 
-    def evaluate(self, vlm, task_list=None, save_interval=1, few_shot_num=0, with_CoT=False, with_oracle_prompt=False, eval_dim="default"):
+    def evaluate(self, vlm, task_list=None, save_interval=1, few_shot_num=0, with_CoT=False, with_oracle_prompt=False, retrieve_sample=False, eval_dim="default"):
         """
         param:
           vlm: the wrapped vlm model with standard interface
@@ -142,7 +204,7 @@ class VLMEvaluator(Evaluator):
 
         if task_list is None or len(task_list) == 0:
             task_list = self.eval_tasks
-        model_result_save_path = self.get_result_save_path(vlm.name, few_shot_num, with_CoT, with_oracle_prompt, eval_dim)
+        model_result_save_path = self.get_result_save_path(vlm.name, few_shot_num, with_CoT, with_oracle_prompt, retrieve_sample, eval_dim)
         if not os.path.exists(model_result_save_path):
             os.makedirs(model_result_save_path)
 
@@ -155,6 +217,10 @@ class VLMEvaluator(Evaluator):
             model_output["benchmeatinfo"] = {}
             model_output["benchmeatinfo"]["existing_num"] = 0
             model_output["benchmeatinfo"]["already_running_time"] = 0
+        
+        if retrieve_sample:
+            self._initialize_retrieval_models()
+
 
         test_example_list = []
         is_resuming = False
@@ -197,7 +263,7 @@ class VLMEvaluator(Evaluator):
                     model_output[task_name][example_num] = {}
                 #   answer should be a dict with keys: operation_sequence / format_error
                 #   if format_error is not in dict, it means the answer is not valid
-                answer = self.get_single_answer(task_name, example_num, vlm, few_shot_num, with_CoT, with_oracle_prompt)
+                answer = self.get_single_answer(task_name, example_num, vlm, few_shot_num, with_CoT, with_oracle_prompt, retrieve_sample)
                 model_output[task_name][example_num] = answer
             except Exception as e:
                 print("\n\nError in task: ", task_name, " example: ", example_num)
@@ -238,10 +304,11 @@ class VLMEvaluator(Evaluator):
             json.dump(model_output, f, ensure_ascii=False, indent=4)
         print(Fore.YELLOW + Style.BRIGHT + "working end at " + time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()))
 
-    def get_final_score_dict(self, vlm_name, few_shot_num=0, with_CoT=False, with_oracle_prompt=False, eval_dim="default"):
-        output_file = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT, with_oracle_prompt, eval_dim), "output.json")
+    def get_final_score_dict(self, vlm_name, few_shot_num=0, with_CoT=False, with_oracle_prompt=False, retrieve_sample=False, eval_dim="default"):
+        output_file = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT, with_oracle_prompt, retrieve_sample, eval_dim), "output.json")
         if not os.path.exists(output_file):
-            print(Fore.RED + Style.BRIGHT + "output file not exist for model: ", vlm_name, " few_shot_num: ", few_shot_num, " with_CoT: ", with_CoT, " with_oracle_prompt: ", with_oracle_prompt, " eval_dim: ", eval_dim)
+            print(Fore.RED + Style.BRIGHT + "output file not exist for model: ", vlm_name, " few_shot_num: ", few_shot_num, \
+                  " with_CoT: ", with_CoT, " with_oracle_prompt: ", with_oracle_prompt, " retrieve_sample: ", retrieve_sample, " eval_dim: ", eval_dim)
             return None
         with open(output_file) as f:
             model_output = json.load(f)
@@ -281,28 +348,28 @@ class VLMEvaluator(Evaluator):
                         "total_score": 0
                     }
                 
-        final_score_dict_save_path = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT, with_oracle_prompt, eval_dim), "final_score.json")
+        final_score_dict_save_path = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT, with_oracle_prompt, retrieve_sample, eval_dim), "final_score.json")
         with open(final_score_dict_save_path, 'w', encoding="utf-8") as f:
             json.dump(final_score_dict, f, ensure_ascii=False, indent=4)
         return final_score_dict
 
-    def get_six_dim_result(self, vlm_name, few_shot_num = 0, with_CoT=False, with_oracle_prompt=False):
-        six_dim_result_save_path = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT, with_oracle_prompt), "six_dim_result.json")
+    def get_six_dim_result(self, vlm_name, few_shot_num = 0, with_CoT=False, with_oracle_prompt=False, retrieve_sample=False):
+        six_dim_result_save_path = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT, with_oracle_prompt, retrieve_sample), "six_dim_result.json")
         if os.path.exists(six_dim_result_save_path):
             with open(six_dim_result_save_path) as f:
                 six_dim_result = json.load(f)
             return six_dim_result
 
-        final_score_file = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT, with_oracle_prompt), "final_score.json")
+        final_score_file = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT, with_oracle_prompt, retrieve_sample), "final_score.json")
         final_score_dict = None
         if not os.path.exists(final_score_file):
-            final_score_dict = self.get_final_score_dict(vlm_name, few_shot_num=few_shot_num, with_CoT=with_CoT, with_oracle_prompt=with_oracle_prompt)
+            final_score_dict = self.get_final_score_dict(vlm_name, few_shot_num=few_shot_num, with_CoT=with_CoT, with_oracle_prompt=with_oracle_prompt, retrieve_sample=retrieve_sample)
         else:
             with open(final_score_file) as f:
                 final_score_dict = json.load(f)
             
         if final_score_dict is None:
-            print(Fore.RED + Style.BRIGHT + "get final score dict failed for model: ", vlm_name, " few_shot_num: ", few_shot_num, " with_CoT: ", with_CoT, " with_oracle_prompt: ", with_oracle_prompt)
+            print(Fore.RED + Style.BRIGHT + "get final score dict failed for model: ", vlm_name, " few_shot_num: ", few_shot_num, " with_CoT: ", with_CoT, " with_oracle_prompt: ", with_oracle_prompt, " retrieve_sample: ", retrieve_sample)
             return None
         
         six_dim_result = {}
@@ -328,7 +395,7 @@ class VLMEvaluator(Evaluator):
                 if key != "example_num":
                     six_dim_result[dim][key] = six_dim_result[dim][key] / six_dim_result[dim]["example_num"]
 
-        six_dim_result_save_path = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT), "six_dim_result.json")
+        six_dim_result_save_path = os.path.join(self.get_result_save_path(vlm_name, few_shot_num, with_CoT, with_oracle_prompt, retrieve_sample), "six_dim_result.json")
         with open(six_dim_result_save_path, 'w', encoding="utf-8") as f:
             json.dump(six_dim_result, f, ensure_ascii=False, indent=4)
         return six_dim_result
