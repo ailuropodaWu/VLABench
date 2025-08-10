@@ -12,14 +12,27 @@ def extract_scores(score_data):
     scores = {}
     for task, task_data in score_data.items():
         task_scores = []
+        exact_match_scores = []
         for example_num, example_data in task_data.items():
             if 'total_score' in example_data:
                 task_scores.append(example_data['total_score'])
+            if 'exact_match_score' in example_data:
+                exact_match_scores.append(example_data['exact_match_score'])
+
+        scores[task] = {}
         if task_scores:
-            scores[task] = sum(task_scores) / len(task_scores)
+            scores[task]['total'] = sum(task_scores) / len(task_scores)
+        if exact_match_scores:
+            scores[task]['exact_match'] = sum(exact_match_scores) / len(exact_match_scores)
+            scores[task]['exact_match_cnt'] = sum(1 for score in exact_match_scores if score == 100)
         else:
             print(f"Warning: No final score found for task {task}.")
-    scores['total_score'] = sum(scores.values()) / len(scores) if scores else 0
+    summarize_score = {}
+    summarize_score['total_score'] = sum(scores[task]['total'] for task in scores) / len(scores) if scores else 0
+    summarize_score['total_exact_match'] = sum(scores[task]['exact_match'] for task in scores) / len(scores) if scores else 0
+    summarize_score['total_exact_match_cnt'] = sum(scores[task]['exact_match_cnt'] for task in scores) / len(scores) if scores else 0
+    scores.update(**summarize_score)
+    # print(scores)
     return scores
 
 def extract_format_error(result_data):
@@ -58,7 +71,7 @@ def main():
         }
     # Get all task names from the first data entry
     first_key = next(iter(all_data.keys()))
-    task_names = [task for task in all_data[first_key]['scores'].keys()]
+    task_names = [task for task in all_data[first_key]['scores'].keys() if 'total' not in task]
     fix_length = max(len(key) for key in all_data.keys()) + 5  # Add some padding for readability
     
     def format_text(text, width):
@@ -116,7 +129,7 @@ def main():
             for task in task_names:
                 score = data['scores'].get(task, 0)
                 format_error = data['format_errors'].get(task, 0)
-                value_text = f"{score:.2f} / {format_error:.1f}%"
+                value_text = f"{score['total']:.2f} / {score['exact_match']:.2f} / {score['exact_match_cnt']:.2f} / {format_error:.1f}%"
                 value_lines.append(format_text(value_text, 25))
             
             # Write all lines for this row
@@ -134,6 +147,8 @@ def main():
                         f.write(value_line[line_idx])
                     else:
                         f.write(" " * 25)
+                f.write("\n")
+                f.write("-" * (fix_length + 25 * len(task_names)) + "\n")
                 f.write("\n")
 
 if __name__ == "__main__":
