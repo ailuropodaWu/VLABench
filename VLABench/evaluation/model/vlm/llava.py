@@ -9,11 +9,11 @@ class Llava_NeXT(BaseVLM):
             torch_dtype=torch.float16, 
             device_map="auto",
         ).cuda()
-        self.processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-mistral-7b-hf")
+        self.processor = AutoProcessor.from_pretrained("llava-hf/llava-v1.6-mistral-7b-hf", use_fast=True)
 
-    def evaluate(self, input_dict, language, with_CoT=False):
+    def evaluate(self, input_dict, language, with_CoT=False, task_to_have_oracle=None):
         few_shot_num = len(input_dict.get("shot_input_pic", {}).keys())
-        ti_list = get_ti_list(input_dict, language, with_CoT=with_CoT)
+        ti_list = get_ti_list(input_dict, language, with_CoT=with_CoT, task_to_have_oracle=task_to_have_oracle)
         content, image_list = self.build_prompt_with_tilist(ti_list)
         conversation = [
             {
@@ -28,7 +28,7 @@ class Llava_NeXT(BaseVLM):
         inputs = self.processor(images=image_list, text=new_prompt, padding=True, return_tensors="pt").to(self.model.device)
 
         # Generate
-        generate_ids = self.model.generate(**inputs, max_new_tokens=200)
+        generate_ids = self.model.generate(**inputs, max_new_tokens=1024)
         output_text = self.processor.batch_decode(generate_ids, skip_special_tokens=True, clean_up_tokenization_spaces=False)[0]
         image_num = few_shot_num*2 +2
 
