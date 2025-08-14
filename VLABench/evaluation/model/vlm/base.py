@@ -67,6 +67,44 @@ def get_ti_list(input_dict, language, with_CoT=False, task_to_have_oracle=None):
         raise ValueError("language should be zh or en")
     return ti_list
 
+def get_cot_ti_list(input_dict, language, stage, task_to_have_oracle=None):
+    ti_list = []
+    if language == "zh":
+        raise NotImplementedError("Chinese CoT prompt generation is not implemented")
+    elif language == "en":
+        if stage == 1:
+            ti_list.append(["text", input_dict["cot_stage1_prompt"] ])
+            ti_list.append(["text", "Input picture" ])
+            ti_list.append(["image", input_dict["input_pic"]])
+            ti_list.append(["text", "Language instruction:"])
+            ti_list.append(["text", input_dict["input_instruction"]])
+            if task_to_have_oracle is not None:
+                try:
+                    oracle_prompt = prepare_oracle_promt(task_to_have_oracle, input_dict["input_instruction"])
+                    ti_list.append(["text", "Please refer to following information to generate the sequence: " + oracle_prompt])
+                except ValueError as e:
+                    pass
+        elif stage == 2:
+            if "shot_input_pic" in input_dict:
+                for shot_num in input_dict["shot_input_pic"]:
+                    ti_list.append(["text", "Example "+shot_num+" input picture:" ])
+                    ti_list.append(["image", input_dict["shot_input_pic"][shot_num]])
+                    ti_list.append(["text", "Example "+shot_num+" input picture with numbered tags" ])
+                    ti_list.append(["image", input_dict["shot_input_pic_gt"][shot_num]])
+                    ti_list.append(["text", "Example "+shot_num+" output skill sequence"])
+                    ti_list.append(["text", json.dumps(input_dict["shot_output"][shot_num])])
+            ti_list.append(["text", input_dict["cot_stage2_prompt"] ])
+            ti_list.append(["text", "Input picture" ])
+            ti_list.append(["image", input_dict["input_pic"]])
+            ti_list.append(["text", "Input picture with numbered tags" ])
+            ti_list.append(["image", input_dict["input_pic_gt"]])
+            ti_list.append(["text", "Sequence Prototype:"])
+            ti_list.append(["text", input_dict["cot_stage1_output"]])
+            ti_list.append(["text", "Please give the converted skill sequence"])
+    else:
+        raise ValueError("language should be zh or en")
+    return ti_list
+
 def prepare_oracle_promt(task_name, instruction):
     if task_name == "cook_dishes":
         recipe_config_path = os.path.join(os.getenv("VLABENCH_ROOT"), "configs", "task_related", "recipe.json")

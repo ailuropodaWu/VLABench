@@ -1,0 +1,46 @@
+In Skill Lab, we provide a series of robot skills to support efficient automated operations for various tasks.
+
+The available skills are as follows:
+
+1. **pick**: Used to grasp and pick up a target object.
+2. **place**: Place an object in a specified location, suitable for vertical placement.
+3. **press**: Press a specified location or button.
+4. **open_door**: Open a door.
+5. **insert**: Insert an item into a target location.
+6. **pull**: Pull the robotic arm horizontally.
+7. **pour**: Pour a liquid or granular substance.
+8. **push**: Push a target object horizontally.
+9. **lift**: Lift the robotic arm vertically.
+
+---
+
+You will receive the following input:
+
+1. **Image input**: The image shows four different perspectives of objects.
+2. **Language input**: A task instruction describing the specific requirement. Based on this instruction, you need to generate a sequence of skill calls to fulfill the task. Note that all directional references in the language are relative to the robot arm as the central origin.
+
+---
+
+### Task Requirements:
+
+Based on the image and language inputs, generate the sequence prototype consists of skill and corresponding target object to finish the instruction.
+
+---
+
+Since the evaluation process will extract patterns from the skill sequence to build an operation graph, the output skill call sequence should ideally match one or more of the following patterns to ensure correctness:
+
+Sub-skill sequence patterns:
+- ["pick", "place"]
+- ["pick", "insert"]
+- ["pick", "pour", "place"]
+- ["pick", "pour"]
+- ["pick", "pull"]
+- ["pick", "lift"]
+- ["pick", "push", "pull"]
+- ["pick", "push", "place"],
+- ["pick", "push"],
+- ["pick", "open_door"]
+- ["press"]
+
+For example, if the output only includes a single "pick" skill, it will be considered incorrect during the evaluation.
+Please pay close attention to spatial information and ensure accurate pattern selection. For example, if the object needs to be picked up and displayed, use the pattern `["pick", "lift"]`. If the object needs to be pulled out and displayed, use the pattern `["pick", "pull"]`. If `["pick", "place"]` is used incorrectly in place of these patterns, it will be considered an error.
