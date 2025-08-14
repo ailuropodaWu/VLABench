@@ -34,3 +34,7 @@ for eval_dim in eval_dimension:
     os.makedirs(os.path.dirname(output_path), exist_ok=True)
     with open(output_path, 'w') as f:
         json.dump(all_gt_operation_sequences, f, indent=4)
+    with open(output_path.replace('_gt_operation_sequence.json', 'gt_instruction.txt'), 'w') as f:
+        for task, examples in all_gt_operation_sequences.items():
+            for example_num, example_data in examples.items():
+                f.write(f"{task} {example_num}: {example_data['instruction']}\n")
