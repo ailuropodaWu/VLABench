@@ -6,8 +6,33 @@ class BaseVLM():
     def __init__(self) -> None:
         self.name =self.get_name()
 
-    def evaluate(self, input_dict, language, with_CoT=False, task_to_have_oracle=None):
+    def get_response(self, ti_list):
+        return ""
         raise NotImplementedError
+    
+    def evaluate(self, input_dict, language, with_CoT=False, task_to_have_oracle=None):
+        output = {}
+        if with_CoT:
+            ti_list = get_cot_ti_list(input_dict, language, stage=1, task_to_have_oracle=task_to_have_oracle)
+            output_text = self.get_response(ti_list)
+            input_dict["cot_stage1_output"] = output_text
+            output["cot_stage1_output"] = output_text
+
+        if with_CoT:
+            ti_list = get_cot_ti_list(input_dict, language, stage=2, task_to_have_oracle=task_to_have_oracle)
+        else:
+            ti_list = get_ti_list(input_dict, language, with_CoT=with_CoT, task_to_have_oracle=task_to_have_oracle)
+
+        output_text = self.get_response(ti_list)
+        output["origin_output"] = output_text
+        try:
+            json_data = output_text.split("```json")[1].split("```")[0]
+            # print(json_data)
+            output["skill_sequence"] = json.loads(json_data)
+        except:
+            # print("No json data found")
+            output["format_error"] = "format_error"
+        return output
     
     def get_name(self):
         return "BaseVLM"

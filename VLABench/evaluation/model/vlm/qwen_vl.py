@@ -24,49 +24,9 @@ class Qwen2_VL(BaseVLM):
         # default processer
         self.processor = AutoProcessor.from_pretrained(model_dir)
 
-    def evaluate(self, input_dict, language, with_CoT=False, task_to_have_oracle=None):
+    def get_response(self, ti_list):
         from qwen_vl_utils import process_vision_info
-        if with_CoT:
-            ti_list = get_cot_ti_list(input_dict, language, stage=1, task_to_have_oracle=task_to_have_oracle)
-            content = self.build_prompt_with_tilist(ti_list)
-
-            # Messages containing multiple images and a text query
-            messages = [
-                {
-                    "role": "user",
-                    "content": content,
-                }
-            ]
-
-            # Preparation for inference
-            text = self.processor.apply_chat_template(
-                messages, tokenize=False, add_generation_prompt=True
-            )
-            image_inputs, video_inputs = process_vision_info(messages)
-            inputs = self.processor(
-                text=[text],
-                images=image_inputs,
-                videos=video_inputs,
-                padding=True,
-                return_tensors="pt",
-            )
-            inputs = inputs.to("cuda")
-
-            # Inference
-            generated_ids = self.model.generate(**inputs, max_new_tokens=1024)
-            generated_ids_trimmed = [
-                out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
-            ]
-            output_text = self.processor.batch_decode(
-                generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
-            )
-            input_dict["cot_stage1_output"] = output_text[0]
-
-        if with_CoT:
-            ti_list = get_cot_ti_list(input_dict, language, stage=2, task_to_have_oracle=task_to_have_oracle)
-        else:
-            ti_list = get_ti_list(input_dict, language, with_CoT=with_CoT, task_to_have_oracle=task_to_have_oracle)
-
+        content = self.build_prompt_with_tilist(ti_list)
         # Messages containing multiple images and a text query
         messages = [
             {
@@ -90,25 +50,15 @@ class Qwen2_VL(BaseVLM):
         inputs = inputs.to("cuda")
 
         # Inference
-        generated_ids = self.model.generate(**inputs, max_new_tokens=1024)
+        generated_ids = self.model.generate(**inputs, max_new_tokens=2048)
         generated_ids_trimmed = [
             out_ids[len(in_ids) :] for in_ids, out_ids in zip(inputs.input_ids, generated_ids)
         ]
         output_text = self.processor.batch_decode(
             generated_ids_trimmed, skip_special_tokens=True, clean_up_tokenization_spaces=False
         )
-        # print(output_text[0])
+        return output_text[0]
 
-        output = {}
-        output["origin_output"] = output_text[0]
-        try:
-            json_data = output_text[0].split("```json")[1].split("```")[0]
-            # print(json_data)
-            output["skill_sequence"] = json.loads(json_data)
-        except:
-            # print("No json data found")
-            output["format_error"] = "format_error"
-        return output
 
     def build_prompt_with_tilist(self, ti_list):
         content = []
