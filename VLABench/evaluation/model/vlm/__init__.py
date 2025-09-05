@@ -5,5 +5,6 @@ from .intern_vl import *
 from .llava import *
 from .minicpm import *
 from .qwen_vl import *
+from .qwen_vl_3b import *
 from .gemini import *
 from .claude import *

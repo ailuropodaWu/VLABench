@@ -35,8 +35,14 @@ class VLMEvaluator(Evaluator):
         self.all_task_list = os.listdir(data_path)
         
         self.eval_tasks = tasks
+        self.prompt = {}
         with open(os.path.join(os.environ["VLABENCH_ROOT"], f"configs/prompt/eval_vlm_{language}.txt"), 'r', encoding='utf-8') as file:
-            self.pre_prompt = file.read()
+            self.prompt["pre_prompt"] = file.read()
+        for stage_prompt in os.listdir(os.path.join(os.environ["VLABENCH_ROOT"], f"configs/prompt/eval_vlm_{language}_cot")):
+            if not stage_prompt.endswith('.txt'):
+                continue
+            with open(os.path.join(os.environ["VLABENCH_ROOT"], f"configs/prompt/eval_vlm_{language}_cot/{stage_prompt}"), 'r', encoding='utf-8') as file:
+                self.prompt[f"cot_{stage_prompt.replace('.txt', '')}_prompt"] = file.read()
         seq_independent_task_config_path = os.path.join(os.environ["VLABENCH_ROOT"], "configs/evaluation/seq_independent_task.json")
         with open(seq_independent_task_config_path, 'r') as f:
             self.seq_independent_task = json.load(f)
@@ -55,7 +61,7 @@ class VLMEvaluator(Evaluator):
 
     def change_language(self, language):
         self.language = language
-        self.pre_prompt = open(f'base_prompt_{language}.txt', 'r').read()
+        self.prompt["pre_prompt"] = open(f'base_prompt_{language}.txt', 'r').read()
 
     def _initialize_retrieval_models(self):
         print(Fore.YELLOW + Style.BRIGHT + "Initializing retrieval models...")
@@ -107,7 +113,7 @@ class VLMEvaluator(Evaluator):
 
     def build_input(self, task_name, example_num, few_shot_num=0, retrieve_sample=False):
         prepared_input = {}
-        prepared_input["pre_prompt"] = self.pre_prompt
+        prepared_input.update(self.prompt)
 
         if few_shot_num != 0:
             prepared_input["shot_input_pic"] = {}

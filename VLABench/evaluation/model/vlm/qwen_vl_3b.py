@@ -1,12 +1,12 @@
 from VLABench.evaluation.model.vlm.base import *
 
-class Qwen2_VL(BaseVLM):
+class Qwen2_VL_3b(BaseVLM):
     def __init__(self) -> None:
         super().__init__()
         
         from transformers import Qwen2VLForConditionalGeneration, AutoTokenizer, AutoProcessor
         from modelscope import snapshot_download
-        model_dir = snapshot_download("qwen/Qwen2-VL-7B-Instruct")
+        model_dir = snapshot_download("qwen/Qwen2-VL-3B-Instruct")
 
         # # default: Load the model on the available device(s)
         # model = Qwen2VLForConditionalGeneration.from_pretrained(

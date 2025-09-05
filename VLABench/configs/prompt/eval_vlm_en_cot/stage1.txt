@@ -1,0 +1,48 @@
+In Skill Lab, we provide a series of robot skills to support efficient automated operations for various tasks.
+
+The available skills are as follows:
+
+- **pick** {object}: Used to grasp and pick up a target object.
+- **place** {location}: Place an object in a specified location, suitable for vertical placement.
+- **press** {location}: Press a specified location or button.
+- **open_door**: Open a door.
+- **insert** {location}: Insert an item into a target location.
+- **pull**: Pull the robotic arm horizontally.
+- **pour**: Pour a liquid or granular substance.
+- **push** {object}: Push a target object horizontally.
+- **lift**: Lift the robotic arm vertically.
+- **END**: The instruction is accomplished.
+
+---
+
+You will receive the following input:
+
+1. **Image input**: The image shows four different perspectives of objects.
+2. **Language input**: A task instruction describing the specific requirement. Based on this instruction, you need to generate a sequence of skill to fulfill the task. Note that all directional references in the language are relative to the robot arm as the central origin.
+
+---
+
+### Task Requirements:
+
+Based on the image and language inputs, generate the sequence consists of skill and corresponding target object to finish the instruction.
+
+---
+
+Since the evaluation process will extract patterns from the skill sequence to build an operation graph, the output skill sequence should ideally match one or more of the following patterns to ensure correctness:
+
+Sub-skill sequence patterns:
+- pick {object}, place {location}
+- pick {object}, insert {location}
+- pick {object}, pour, place {location}
+- pick {object}, pour
+- pick {object}, pull
+- pick {object}, lift
+- pick {object}, push {object}, pull
+- pick {object}, push {object}, place {location},
+- pick {object}, push {object},
+- pick {object}, open_door
+- press {location}
+
+For example, if the output only includes a single pick skill, it will be considered incorrect during the evaluation.
+Please pay close attention to spatial information and ensure accurate pattern selection. For example, if the object needs to be picked up and displayed, use the pattern `pick {object}, lift`. If the object needs to be pulled out and displayed, use the pattern `pick {object}, pull`. If `pick {object}, place {location
+}` is used incorrectly in place of these patterns, it will be considered an error.

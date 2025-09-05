@@ -14,7 +14,7 @@ def initialize_model(model_name, *args, **kwargs):
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Run VLM benchmark with specified model and parameters.")
-    parser.add_argument("--vlm_name", type=str, default="GPT_4v", choices=["GPT_4v", "Qwen2_VL", "InternVL2", "MiniCPM_V2_6", "GLM4v", "Llava_NeXT", "Gemini", "Claude"], help="Name of the model class to instantiate")
+    parser.add_argument("--vlm_name", type=str, default="GPT_4v", choices=["GPT_4v", "Qwen2_VL", "InternVL2", "MiniCPM_V2_6", "GLM4v", "Llava_NeXT", "Gemini", "Claude", "BaseVLM", "Qwen2_VL_3b"], help="Name of the model class to instantiate")
     parser.add_argument("--save_interval", type=int, default=1, help="Interval for saving benchmark results")
     parser.add_argument("--few-shot-num", type=int, default=0, help="Number of few-shot examples")
     parser.add_argument("--eval-dimension", nargs="+", type=str, default=["M&T", "CommonSense", "Semantic", "Spatial", "PhysicalLaw", "Complex"], help="evaluation dimensions")

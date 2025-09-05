@@ -6,8 +6,33 @@ class BaseVLM():
     def __init__(self) -> None:
         self.name =self.get_name()
 
-    def evaluate(self, input_dict, language, with_CoT=False, task_to_have_oracle=None):
+    def get_response(self, ti_list):
+        return ""
         raise NotImplementedError
+    
+    def evaluate(self, input_dict, language, with_CoT=False, task_to_have_oracle=None):
+        output = {}
+        if with_CoT:
+            ti_list = get_cot_ti_list(input_dict, language, stage=1, task_to_have_oracle=task_to_have_oracle)
+            output_text = self.get_response(ti_list)
+            input_dict["cot_stage1_output"] = output_text
+            output["cot_stage1_output"] = output_text
+
+        if with_CoT:
+            ti_list = get_cot_ti_list(input_dict, language, stage=2, task_to_have_oracle=task_to_have_oracle)
+        else:
+            ti_list = get_ti_list(input_dict, language, with_CoT=with_CoT, task_to_have_oracle=task_to_have_oracle)
+
+        output_text = self.get_response(ti_list)
+        output["origin_output"] = output_text
+        try:
+            json_data = output_text.split("```json")[1].split("```")[0]
+            # print(json_data)
+            output["skill_sequence"] = json.loads(json_data)
+        except:
+            # print("No json data found")
+            output["format_error"] = "format_error"
+        return output
     
     def get_name(self):
         return "BaseVLM"
@@ -63,6 +88,44 @@ def get_ti_list(input_dict, language, with_CoT=False, task_to_have_oracle=None):
         ti_list.append(["text", "Please give the output skill sequence"])
         if with_CoT:
             ti_list.append(["text", "Please analyze the problem step by step and give the answer"])
+    else:
+        raise ValueError("language should be zh or en")
+    return ti_list
+
+def get_cot_ti_list(input_dict, language, stage, task_to_have_oracle=None):
+    ti_list = []
+    if language == "zh":
+        raise NotImplementedError("Chinese CoT prompt generation is not implemented")
+    elif language == "en":
+        if stage == 1:
+            ti_list.append(["text", input_dict["cot_stage1_prompt"] ])
+            ti_list.append(["text", "Input picture" ])
+            ti_list.append(["image", input_dict["input_pic"]])
+            ti_list.append(["text", "Language instruction:"])
+            ti_list.append(["text", input_dict["input_instruction"]])
+            if task_to_have_oracle is not None:
+                try:
+                    oracle_prompt = prepare_oracle_promt(task_to_have_oracle, input_dict["input_instruction"])
+                    ti_list.append(["text", "Please refer to following information to generate the sequence: " + oracle_prompt])
+                except ValueError as e:
+                    pass
+        elif stage == 2:
+            if "shot_input_pic" in input_dict:
+                for shot_num in input_dict["shot_input_pic"]:
+                    ti_list.append(["text", "Example "+shot_num+" input picture:" ])
+                    ti_list.append(["image", input_dict["shot_input_pic"][shot_num]])
+                    ti_list.append(["text", "Example "+shot_num+" input picture with numbered tags" ])
+                    ti_list.append(["image", input_dict["shot_input_pic_gt"][shot_num]])
+                    ti_list.append(["text", "Example "+shot_num+" output skill sequence"])
+                    ti_list.append(["text", json.dumps(input_dict["shot_output"][shot_num])])
+            ti_list.append(["text", input_dict["cot_stage2_prompt"] ])
+            ti_list.append(["text", "Input picture" ])
+            ti_list.append(["image", input_dict["input_pic"]])
+            ti_list.append(["text", "Input picture with numbered tags" ])
+            ti_list.append(["image", input_dict["input_pic_gt"]])
+            ti_list.append(["text", "Sequence Prototype:"])
+            ti_list.append(["text", input_dict["cot_stage1_output"]])
+            ti_list.append(["text", "Please give the converted skill sequence"])
     else:
         raise ValueError("language should be zh or en")
     return ti_list
