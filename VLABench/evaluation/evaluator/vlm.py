@@ -232,7 +232,7 @@ class VLMEvaluator(Evaluator):
         is_resuming = False
         existing_num = 0
         for task_name in task_list:
-            for example_num in range(len(os.listdir(os.path.join(self.data_path, task_name)))):
+            for example_num in min(range(len(os.listdir(os.path.join(self.data_path, task_name)))), self.n_episodes):
                 if task_name in model_output and str(example_num) in model_output[task_name]:
                     if self.check_filled_output(model_output[task_name][str(example_num)]):
                         is_resuming = True
